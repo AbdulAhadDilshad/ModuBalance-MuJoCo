@@ -16,6 +16,7 @@ class ConnectorMeasurement:
     commands: np.ndarray
     element_forces: np.ndarray
     saturated_elements: int = 0
+    max_separation: float = 0.0
 
 
 class Connector(Protocol):
@@ -26,4 +27,3 @@ class Connector(Protocol):
 
     def apply(self, model: mujoco.MjModel, data: mujoco.MjData, command: object) -> ConnectorMeasurement:
         ...
-

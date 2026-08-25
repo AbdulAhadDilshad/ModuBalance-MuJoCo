@@ -109,13 +109,15 @@ def run_phase2_experiment(
     save_artifacts: bool = True,
     print_results: bool = True,
     seed: int | None = None,
+    verify_geometry: bool = True,
 ) -> Phase2RunResult:
     model = mujoco.MjModel.from_xml_path(str(Path(model_path).resolve()))
     data = mujoco.MjData(model)
     model.opt.timestep = float(config["simulation"]["timestep"])
     model.geom_friction[:, 0] = float(config["friction"])
     mujoco.mj_forward(model, data)
-    verify_three_module_geometry(model, data)
+    if verify_geometry:
+        verify_three_module_geometry(model, data)
 
     # Joint-specific addresses avoid relying on numeric ordering.
     initial_angles = {
@@ -252,9 +254,19 @@ def run_phase2_experiment(
             topology.remove_c()
             set_c_active(False)
             data.eq_active[latches["BC"].equality_id] = 0
+            ab_joint = _id(model, mujoco.mjtObj.mjOBJ_JOINT, "joint_AB")
+            data.qvel[int(model.jnt_dofadr[ab_joint])] += float(
+                config["reconfiguration"]["removal_recoil_velocity"]
+            )
         elif experiment == "add_module":
             topology.add_c()
             set_c_active(True)
+            bc_joint = _id(model, mujoco.mjtObj.mjOBJ_JOINT, "joint_BC")
+            data.qpos[int(model.jnt_qposadr[bc_joint])] = np.deg2rad(
+                float(config["reconfiguration"]["add_alignment_error_deg"])
+            )
+            data.qvel[int(model.jnt_dofadr[bc_joint])] = 0.0
+            mujoco.mj_forward(model, data)
         elif experiment == "reposition_module":
             offset = float(config["reconfiguration"]["reposition_offset_x"])
             topology.reposition_c(offset)
@@ -264,6 +276,12 @@ def run_phase2_experiment(
             for site in c_site_ids:
                 model.site_pos[site] = c_original_site_positions[site] + np.array([offset, 0.0, 0.0])
             mujoco.mj_setConst(model, data)
+            bc_joint = _id(model, mujoco.mjtObj.mjOBJ_JOINT, "joint_BC")
+            data.qpos[int(model.jnt_qposadr[bc_joint])] += np.deg2rad(
+                float(config["reconfiguration"]["reposition_alignment_deg"])
+            )
+            data.qvel[int(model.jnt_dofadr[bc_joint])] = 0.0
+            mujoco.mj_forward(model, data)
         reconfigured = experiment in {"remove_module", "add_module", "reposition_module"}
         channel.update_links(topology.communication_links())
 
@@ -340,6 +358,18 @@ def run_phase2_experiment(
         data.qfrc_applied[:] = 0.0
         payload_active = payload.apply(data, body_ids["C"], payload_site) if topology.modules["C"] else False
         model.geom_rgba[payload_geom, 3] = 0.90 if payload_active else (0.28 if topology.modules["C"] else 0.03)
+        if topology.c_offset_x != 0.0:
+            # Equivalent gravity moment of Cube C's shifted COM about the BC hinge.
+            offset_torque = np.array([0.0, topology.c_offset_x * c_mass * 9.81, 0.0])
+            mujoco.mj_applyFT(
+                model,
+                data,
+                np.zeros(3),
+                offset_torque,
+                data.xipos[body_ids["C"]],
+                body_ids["C"],
+                data.qfrc_applied,
+            )
         disturbance = config["disturbance"]
         if float(disturbance["start_time"]) <= data.time < float(disturbance["start_time"]) + float(disturbance["duration"]):
             data.xfrc_applied[body_ids["C"], 0] += float(disturbance["force_x"])
@@ -366,6 +396,7 @@ def run_phase2_experiment(
             "topology_connector_AB_active": int(topology.connectors["AB"]),
             "topology_connector_BC_active": int(topology.connectors["BC"]),
             "topology_c_offset_x": topology.c_offset_x,
+            "reconfiguration_event_applied": int(reconfigured),
             "connector_AB_force": connector_measurements["AB"].force,
             "connector_AB_torque": connector_measurements["AB"].torque,
             "connector_AB_latch_state": latches["AB"].state,
@@ -375,7 +406,18 @@ def run_phase2_experiment(
             "latch_transition_count": latches["AB"].transitions + latches["BC"].transitions,
             "saturated_element_count": connector_measurements["AB"].saturated_elements + connector_measurements["BC"].saturated_elements,
             "control_effort": float(np.sum(np.abs(connector_measurements["AB"].commands)) + np.sum(np.abs(connector_measurements["BC"].commands))),
-            "detachment_failure": int(False),
+            "max_connector_separation": max(
+                connector_measurements["AB"].max_separation,
+                connector_measurements["BC"].max_separation,
+            ),
+            "detachment_failure": int(
+                any(
+                    topology.connectors[name]
+                    and connector_measurements[name].max_separation
+                    > float(config["evaluation"]["failure_connector_separation_m"])
+                    for name in ("AB", "BC")
+                )
+            ),
             "communication_messages_A": received_counts["A"],
             "communication_messages_B": received_counts["B"],
             "communication_messages_C": received_counts["C"],

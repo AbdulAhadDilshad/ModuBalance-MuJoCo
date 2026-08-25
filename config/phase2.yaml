@@ -62,6 +62,9 @@ disturbance:
 reconfiguration:
   event_time: 7.0
   reposition_offset_x: 0.060
+  reposition_alignment_deg: 4.0
+  add_alignment_error_deg: 3.0
+  removal_recoil_velocity: 0.15
 
 sensor_noise:
   orientation_std_deg: 0.0
@@ -76,3 +79,4 @@ evaluation:
   settling_dwell_time: 1.0
   failure_max_pitch_deg: 15.0
   failure_max_roll_deg: 15.0
+  failure_connector_separation_m: 0.030

@@ -65,6 +65,7 @@ class MagneticConnector:
         raw_commands = np.asarray(command, dtype=float)
         commands = np.clip(raw_commands, 0.0, 1.0)
         forces = np.zeros(4, dtype=float)
+        separations = np.zeros(4, dtype=float)
         upper_torque = np.zeros(3, dtype=float)
         zero_torque = np.zeros(3, dtype=float)
         for index, (lower_site, upper_site) in enumerate(zip(self.lower_site_ids, self.upper_site_ids)):
@@ -72,6 +73,7 @@ class MagneticConnector:
             upper_point = np.asarray(data.site_xpos[upper_site], dtype=float).copy()
             displacement = lower_point - upper_point
             distance = float(np.linalg.norm(displacement))
+            separations[index] = distance
             direction = displacement / distance if distance > 1e-9 else np.array([0.0, 0.0, -1.0])
             attenuation = 1.0 / (1.0 + (distance / self.distance_scale) ** 2)
             magnitude = float(commands[index] * self.maximum_force * attenuation)
@@ -89,10 +91,10 @@ class MagneticConnector:
             torque=float(np.linalg.norm(upper_torque)),
             commands=commands.copy(),
             element_forces=forces,
-            saturated_elements=int(np.count_nonzero(~np.isclose(raw_commands, commands))),
+            saturated_elements=int(np.count_nonzero((commands <= 1e-12) | (commands >= 1.0 - 1e-12))),
+            max_separation=float(np.max(separations)),
         )
         return self._last
 
     def observe(self) -> ConnectorMeasurement:
         return self._last
-

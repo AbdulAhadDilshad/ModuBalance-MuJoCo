@@ -41,6 +41,9 @@ def evaluate_phase2(records: list[dict[str, Any]], config: dict[str, Any]) -> di
     roll = np.column_stack(
         [[row[f"module_{module}_roll"] for row in records] for module in "ABC"]
     ).astype(float)
+    c_active = np.asarray([row["topology_module_C_active"] for row in records], dtype=bool)
+    pitch[:, 2] = np.where(c_active, pitch[:, 2], 0.0)
+    roll[:, 2] = np.where(c_active, roll[:, 2], 0.0)
     connector_force = np.column_stack(
         [[row[f"connector_{connector}_force"] for row in records] for connector in ("AB", "BC")]
     ).astype(float)
@@ -73,6 +76,18 @@ def evaluate_phase2(records: list[dict[str, Any]], config: dict[str, Any]) -> di
         float(evaluation["roll_tolerance_deg"]),
         float(evaluation["settling_dwell_time"]),
     ) if duration >= base_time + float(evaluation["settling_dwell_time"]) else None
+    reconfiguration_applied = any(row["reconfiguration_event_applied"] for row in records)
+    reconfiguration_time = float(config["reconfiguration"]["event_time"])
+    reconfiguration_settling = _multi_axis_settling_time(
+        time,
+        pitch,
+        roll,
+        reconfiguration_time,
+        min(base_time, duration),
+        float(evaluation["balance_tolerance_deg"]),
+        float(evaluation["roll_tolerance_deg"]),
+        float(evaluation["settling_dwell_time"]),
+    ) if reconfiguration_applied and duration >= reconfiguration_time + float(evaluation["settling_dwell_time"]) else None
     max_pitch = float(np.max(np.abs(pitch)))
     max_roll = float(np.max(np.abs(roll)))
     report = {
@@ -80,6 +95,7 @@ def evaluate_phase2(records: list[dict[str, Any]], config: dict[str, Any]) -> di
         "peak_roll_deg": max_roll,
         "settling_time_payload_s": payload_settling,
         "settling_time_base_s": base_settling,
+        "settling_time_reconfiguration_s": reconfiguration_settling,
         "rms_pitch_deg": float(np.sqrt(np.mean(np.square(pitch)))),
         "rms_roll_deg": float(np.sqrt(np.mean(np.square(roll)))),
         "max_connector_force_n": float(np.max(connector_force)),
@@ -90,12 +106,14 @@ def evaluate_phase2(records: list[dict[str, Any]], config: dict[str, Any]) -> di
         "saturation_fraction": float(np.sum(saturated) / max(1.0, len(records) * 8.0)),
         "latch_transitions": int(records[-1]["latch_transition_count"]),
         "control_effort": float(np.trapezoid(effort, time)),
+        "max_connector_separation_m": float(max(row["max_connector_separation"] for row in records)),
         "detachment_failure": bool(any(row["detachment_failure"] for row in records)),
     }
     report["recovery_success"] = bool(
         max_pitch <= float(evaluation["failure_max_pitch_deg"])
         and max_roll <= float(evaluation["failure_max_roll_deg"])
         and not report["detachment_failure"]
+        and (not reconfiguration_applied or reconfiguration_settling is not None)
         and (payload_settling is not None or duration < payload_time + float(evaluation["settling_dwell_time"]))
         and (base_settling is not None or duration < base_time + float(evaluation["settling_dwell_time"]))
     )
@@ -119,9 +137,9 @@ def print_phase2_summary(report: dict[str, Any]) -> None:
     print(f"RMS pitch / roll: {report['rms_pitch_deg']:.3f} / {report['rms_roll_deg']:.3f} deg")
     print(f"Payload settling: {report['settling_time_payload_s']}")
     print(f"Base settling: {report['settling_time_base_s']}")
+    print(f"Reconfiguration settling: {report['settling_time_reconfiguration_s']}")
     print(f"Maximum connector force: {report['max_connector_force_n']:.3f} N")
     print(f"Maximum connector torque: {report['max_connector_torque_nm']:.3f} N m")
     print(f"Magnet saturation fraction: {report['saturation_fraction']:.4f}")
     print(f"Latch transitions: {report['latch_transitions']}")
     print(f"Recovery: {'PASS' if report['recovery_success'] else 'FAIL'}")
-
