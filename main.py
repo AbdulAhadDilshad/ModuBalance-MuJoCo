@@ -6,8 +6,11 @@ import argparse
 from copy import deepcopy
 from pathlib import Path
 
+import yaml
+
 from src.configuration import load_config
 from src.phase2_simulation import run_phase2_experiment
+from src.prototype_simulation import run_prototype
 from src.simulation import run_experiment
 
 
@@ -48,8 +51,13 @@ def main() -> None:
     if args.mode is not None and experiment == "phase1":
         experiment = "three_module"
     controller = args.mode or args.controller or ("pd" if experiment == "phase1" else "distributed")
-    config_path = args.config or PROJECT_ROOT / "config" / ("default.yaml" if experiment == "phase1" else "phase2.yaml")
-    config = deepcopy(load_config(config_path))
+    if experiment in {"two_leg", "wheeled"}:
+        config_path = args.config or PROJECT_ROOT / "config" / f"{experiment}.yaml"
+        with Path(config_path).open("r", encoding="utf-8") as handle:
+            config = deepcopy(yaml.safe_load(handle))
+    else:
+        config_path = args.config or PROJECT_ROOT / "config" / ("default.yaml" if experiment == "phase1" else "phase2.yaml")
+        config = deepcopy(load_config(config_path))
     if args.duration is not None:
         if args.duration <= 0:
             raise SystemExit("--duration must be positive")
@@ -73,7 +81,15 @@ def main() -> None:
         return
 
     if experiment in {"two_leg", "wheeled"}:
-        raise SystemExit(f"The {experiment} prototype runner is installed in a later Phase-2 milestone.")
+        output = args.output_dir or PROJECT_ROOT / "results" / "phase2" / experiment
+        run_prototype(
+            experiment,
+            config,
+            PROJECT_ROOT / "models" / f"{experiment}_modular_robot.xml",
+            output,
+            headless=args.headless,
+        )
+        return
     phase2_controller = "passive" if controller == "off" else controller
     if phase2_controller not in {"distributed", "centralized", "passive"}:
         raise SystemExit("Phase 2 supports distributed, centralized, or passive control")

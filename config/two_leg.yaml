@@ -1,0 +1,7 @@
+simulation: {timestep: 0.002, duration: 12.0}
+initial: {pitch_deg: 3.0, roll_deg: 2.0}
+controller: {kp: 70.0, kd: 12.0, max_torque: 30.0}
+payload: {equivalent_mass: 0.5, start_time: 4.0}
+disturbance: {start_time: 7.0, duration: 0.10, force_x: 8.0, force_y: 5.0}
+evaluation: {tolerance_deg: 3.0, failure_angle_deg: 15.0}
+
