@@ -1,0 +1,72 @@
+<mujoco model="ModuBalance modular balance experiment">
+  <compiler angle="degree" autolimits="true"/>
+  <option timestep="0.002" gravity="0 0 -9.81" integrator="RK4"/>
+
+  <default>
+    <geom friction="0.8 0.01 0.001" condim="3"/>
+    <joint damping="0.2" armature="0.01"/>
+  </default>
+
+  <visual>
+    <headlight ambient="0.35 0.35 0.35" diffuse="0.75 0.75 0.75"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="135" elevation="-18"/>
+  </visual>
+
+  <asset>
+    <texture name="ground_tex" type="2d" builtin="checker" rgb1="0.16 0.18 0.20" rgb2="0.22 0.24 0.26" width="512" height="512"/>
+    <material name="ground_mat" texture="ground_tex" texrepeat="4 4" reflectance="0.15"/>
+    <material name="platform_mat" rgba="0.20 0.25 0.32 1"/>
+    <material name="cube_a_mat" rgba="0.18 0.52 0.72 1"/>
+    <material name="cube_b_mat" rgba="0.90 0.47 0.16 1"/>
+    <material name="payload_mat" rgba="0.72 0.18 0.20 0.8"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 -2 3" dir="0 0 -1" directional="true"/>
+    <geom name="ground" type="plane" size="5 5 0.1" material="ground_mat"/>
+
+    <body name="platform" pos="0 0 0.08">
+      <joint name="platform_slide" type="slide" axis="1 0 0" range="-1.0 1.0" damping="20"/>
+      <geom name="platform_geom" type="box" size="0.35 0.225 0.04" mass="12" material="platform_mat"/>
+
+      <body name="cube_a" pos="0 0 0.16">
+        <geom name="cube_a_geom" type="box" size="0.12 0.12 0.12" mass="3" material="cube_a_mat"/>
+        <geom name="lower_connector" type="cylinder" size="0.045 0.018" pos="0 0 -0.138" mass="0.05" rgba="0.12 0.12 0.12 1"/>
+
+        <body name="cube_b" pos="0 0 0.24">
+          <joint name="balance_hinge" type="hinge" axis="0 1 0" range="-35 35" damping="0.35" armature="0.015"/>
+          <geom name="cube_b_geom" type="box" size="0.12 0.12 0.12" pos="0 0 0.12" mass="2" material="cube_b_mat"/>
+          <geom name="upper_connector" type="cylinder" size="0.05 0.018" euler="90 0 0" mass="0.05" rgba="0.10 0.10 0.10 1"/>
+          <site name="connector_sensor_site" pos="0 0 0" size="0.025" rgba="0.2 1 0.2 0.7"/>
+          <site name="cube_b_imu" pos="0 0 0.12" size="0.012" rgba="1 1 0 0"/>
+          <site name="payload_site" pos="0.15 0 0.27" size="0.02" rgba="1 0 0 0.8"/>
+          <!-- Visual marker only. The physical payload wrench is activated at runtime. -->
+          <geom name="payload_visual" type="box" pos="0.15 0 0.285" size="0.06 0.06 0.025" mass="0" contype="0" conaffinity="0" material="payload_mat"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <motor name="balance_motor" joint="balance_hinge" gear="1" ctrllimited="true" ctrlrange="-12 12" forcelimited="true" forcerange="-12 12"/>
+    <position name="platform_position_servo" joint="platform_slide" kp="800" kv="140" ctrllimited="true" ctrlrange="-1 1" forcelimited="true" forcerange="-200 200"/>
+  </actuator>
+
+  <sensor>
+    <jointpos name="hinge_position" joint="balance_hinge"/>
+    <jointvel name="hinge_velocity" joint="balance_hinge"/>
+    <framequat name="cube_b_orientation" objtype="site" objname="cube_b_imu"/>
+    <gyro name="cube_b_angular_velocity" site="cube_b_imu"/>
+    <actuatorfrc name="balance_actuator_force" actuator="balance_motor"/>
+    <force name="connector_force" site="connector_sensor_site"/>
+    <torque name="connector_torque" site="connector_sensor_site"/>
+    <jointpos name="platform_position" joint="platform_slide"/>
+    <jointvel name="platform_velocity" joint="platform_slide"/>
+  </sensor>
+
+  <keyframe>
+    <key name="initial_disturbance" qpos="0 5" ctrl="0 0"/>
+  </keyframe>
+</mujoco>
+
