@@ -86,6 +86,13 @@
     </body>
   </worldbody>
 
+  <!-- Adjacent cube faces meet visually at connector interfaces, but must not
+       create hidden frictional bracing; connector forces alone stabilize them. -->
+  <contact>
+    <exclude body1="cube_a" body2="cube_b"/>
+    <exclude body1="cube_b" body2="cube_c"/>
+  </contact>
+
   <!-- Runtime latch constraints. Hinges retain translation while these welds lock alignment. -->
   <equality>
     <weld name="latch_AB" body1="cube_a" body2="cube_b" active="false"/>

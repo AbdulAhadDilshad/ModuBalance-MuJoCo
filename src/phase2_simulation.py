@@ -308,8 +308,18 @@ def run_phase2_experiment(
 
         ab_pitch = actions["B"].ideal_torque
         bc_pitch = actions["C"].ideal_torque
-        ab_roll = -float(config["controller"]["kp"]) * observations["B"].local_roll - float(config["controller"]["kd"]) * observations["B"].local_roll_rate
-        bc_roll = -float(config["controller"]["kp"]) * observations["C"].local_roll - float(config["controller"]["kd"]) * observations["C"].local_roll_rate
+        kp = float(config["controller"]["kp"])
+        kd = float(config["controller"]["kd"])
+        if controller_mode == "passive":
+            ab_roll = bc_roll = 0.0
+        elif controller_mode == "centralized":
+            ab_roll = -kp * (0.65 * observations["B"].local_roll + 0.35 * observations["C"].local_roll) - kd * (
+                0.65 * observations["B"].local_roll_rate + 0.35 * observations["C"].local_roll_rate
+            )
+            bc_roll = -0.85 * kp * observations["C"].local_roll - kd * observations["C"].local_roll_rate
+        else:
+            ab_roll = -kp * observations["B"].local_roll - kd * observations["B"].local_roll_rate
+            bc_roll = -kp * observations["C"].local_roll - kd * observations["C"].local_roll_rate
         if connector_type == "ideal":
             if topology.connectors["AB"]:
                 connector_measurements["AB"] = connectors["AB"].apply(model, data, [ab_pitch, ab_roll])

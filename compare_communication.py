@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parent
 def main() -> None:
     config = load_config(ROOT / "config" / "phase2.yaml")
     cases = {
+        "Passive": ("passive", "none"),
         "Centralized": ("centralized", "nearest_neighbor"),
         "Distributed nearest": ("distributed", "nearest_neighbor"),
         "Distributed local only": ("distributed", "none"),
@@ -55,4 +56,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
