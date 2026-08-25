@@ -26,23 +26,37 @@
     <light pos="0 -2 3" dir="0 0 -1" directional="true"/>
     <geom name="ground" type="plane" size="5 5 0.1" material="ground_mat"/>
 
-    <body name="platform" pos="0 0 0.08">
+    <!-- Neutral-pose world Z dimensions (box size values are half-extents):
+         ground surface:       z = 0.000 m
+         platform:             bottom 0.000, top 0.080 m (center 0.040)
+         Cube A:               bottom 0.080, top 0.320 m (center 0.200)
+         hinge / A-B interface:z = 0.320 m
+         Cube B:               bottom 0.320, top 0.560 m (center 0.440)
+         payload:              bottom 0.562, top 0.612 m (center 0.587)
+         The payload has an intentional 0.002 m visual clearance. -->
+    <body name="platform" pos="0 0 0.04">
       <joint name="platform_slide" type="slide" axis="1 0 0" range="-1.0 1.0" damping="20"/>
       <geom name="platform_geom" type="box" size="0.35 0.225 0.04" mass="12" material="platform_mat"/>
 
+      <!-- Local z=0.16 = platform half-height 0.04 + Cube A half-height 0.12. -->
       <body name="cube_a" pos="0 0 0.16">
         <geom name="cube_a_geom" type="box" size="0.12 0.12 0.12" mass="3" material="cube_a_mat"/>
         <geom name="lower_connector" type="cylinder" size="0.045 0.018" pos="0 0 -0.138" mass="0.05" rgba="0.12 0.12 0.12 1"/>
 
-        <body name="cube_b" pos="0 0 0.24">
+        <!-- Cube B's body origin and hinge are at the A/B interface.
+             Local z=0.12 is Cube A's half-height, not a world coordinate. -->
+        <body name="cube_b" pos="0 0 0.12">
           <joint name="balance_hinge" type="hinge" axis="0 1 0" range="-35 35" damping="0.35" armature="0.015"/>
+          <!-- Center is 0.12 m above the hinge, so Cube B's bottom touches Cube A's top. -->
           <geom name="cube_b_geom" type="box" size="0.12 0.12 0.12" pos="0 0 0.12" mass="2" material="cube_b_mat"/>
           <geom name="upper_connector" type="cylinder" size="0.05 0.018" euler="90 0 0" mass="0.05" rgba="0.10 0.10 0.10 1"/>
           <site name="connector_sensor_site" pos="0 0 0" size="0.025" rgba="0.2 1 0.2 0.7"/>
           <site name="cube_b_imu" pos="0 0 0.12" size="0.012" rgba="1 1 0 0"/>
-          <site name="payload_site" pos="0.15 0 0.27" size="0.02" rgba="1 0 0 0.8"/>
-          <!-- Visual marker only. The physical payload wrench is activated at runtime. -->
-          <geom name="payload_visual" type="box" pos="0.15 0 0.285" size="0.06 0.06 0.025" mass="0" contype="0" conaffinity="0" material="payload_mat"/>
+          <!-- The payload load is applied at this off-centre contact site at t=5 s. -->
+          <site name="payload_site" pos="0.06 0 0.242" size="0.012" rgba="1 0 0 0.8"/>
+          <!-- Zero-mass visualization of the equivalent-load payload. It rests 2 mm above Cube B;
+               runtime code makes it opaque when its physical wrench becomes active. -->
+          <geom name="payload_visual" type="box" pos="0.06 0 0.267" size="0.06 0.06 0.025" mass="0" contype="0" conaffinity="0" rgba="0.72 0.18 0.20 0.28"/>
         </body>
       </body>
     </body>
@@ -69,4 +83,3 @@
     <key name="initial_disturbance" qpos="0 5" ctrl="0 0"/>
   </keyframe>
 </mujoco>
-

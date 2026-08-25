@@ -41,7 +41,10 @@ def main() -> None:
         else:
             records[mode] = _records_from_columns(load_csv(csv_path))
     destination = generate_comparison_plot(
-        records["off"], records["pd"], config, ROOT / "results" / "comparison_pitch.png"
+        records["off"],
+        records["pd"],
+        config,
+        ROOT / "results" / "comparison" / "pitch_pd_vs_off.png",
     )
     off_peak = max(abs(row["pitch_deg"]) for row in records["off"])
     pd_peak = max(abs(row["pitch_deg"]) for row in records["pd"])
@@ -52,4 +55,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

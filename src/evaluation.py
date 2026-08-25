@@ -41,7 +41,7 @@ def evaluate_experiment(
         raise ValueError("Cannot evaluate an empty experiment")
     time = np.asarray([row["time"] for row in records], dtype=float)
     pitch = np.asarray([row["pitch_deg"] for row in records], dtype=float)
-    torque = np.asarray([row["commanded_joint_torque"] for row in records], dtype=float)
+    torque = np.asarray([row["controller_torque_command"] for row in records], dtype=float)
     saturated = np.asarray([row["actuator_saturated"] for row in records], dtype=bool)
 
     payload_time = float(config["payload"]["start_time"])
@@ -133,4 +133,3 @@ def print_summary(report: dict[str, Any]) -> None:
     print(f"Maximum control torque: {report['maximum_control_torque_nm']:.3f} N m")
     print(f"Actuator saturated: {'YES' if report['actuator_saturated'] else 'NO'}")
     print(f"\nOverall feasibility result: {status(report['overall_feasibility_pass'])}")
-

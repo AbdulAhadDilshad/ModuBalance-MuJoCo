@@ -15,15 +15,18 @@ class PayloadDisturbance:
     offset_x: float
     gravity: float = 9.81
 
-    def apply(self, data: mujoco.MjData, body_id: int) -> bool:
-        """Apply the global wrench of an off-centre supported payload to Cube B."""
+    def apply(self, data: mujoco.MjData, body_id: int, site_id: int) -> bool:
+        """Apply the equivalent payload force at its actual off-centre MJCF site."""
         data.xfrc_applied[body_id, :] = 0.0
         if data.time + 1e-12 < self.start_time:
             return False
         downward_force = self.equivalent_mass * self.gravity
-        data.xfrc_applied[body_id, 2] = -downward_force
-        # r=(offset_x, 0, 0), F=(0, 0, -mg): r x F=(0, offset_x*mg, 0).
-        data.xfrc_applied[body_id, 4] = self.offset_x * downward_force
+        force = np.array([0.0, 0.0, -downward_force], dtype=float)
+        # xfrc_applied torque is about the body's center of mass. Derive the lever
+        # arm from MuJoCo world positions so it remains correct while Cube B pitches.
+        lever_arm = np.asarray(data.site_xpos[site_id] - data.xipos[body_id], dtype=float)
+        data.xfrc_applied[body_id, :3] = force
+        data.xfrc_applied[body_id, 3:] = np.cross(lever_arm, force)
         return True
 
 

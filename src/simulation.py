@@ -60,6 +60,68 @@ def _configure_model(model: mujoco.MjModel, config: dict[str, Any]) -> None:
     model.actuator_forcerange[motor_id, :] = (-max_torque, max_torque)
 
 
+def _box_vertical_bounds(
+    model: mujoco.MjModel, data: mujoco.MjData, geom_name: str
+) -> tuple[float, float]:
+    """Compute a box geom's world-Z bounds from its actual pose and half-extents."""
+    geom_id = _named_id(model, mujoco.mjtObj.mjOBJ_GEOM, geom_name)
+    if int(model.geom_type[geom_id]) != int(mujoco.mjtGeom.mjGEOM_BOX):
+        raise ValueError(f"Geometry verification requires box geom '{geom_name}'")
+    rotation = np.asarray(data.geom_xmat[geom_id], dtype=float).reshape(3, 3)
+    half_extent_z = float(np.dot(np.abs(rotation[2, :]), model.geom_size[geom_id, :3]))
+    center_z = float(data.geom_xpos[geom_id, 2])
+    return center_z - half_extent_z, center_z + half_extent_z
+
+
+def verify_model_geometry(
+    model: mujoco.MjModel, data: mujoco.MjData, warning_threshold: float = 0.005
+) -> dict[str, float]:
+    """Print and return neutral-pose world geometry interfaces using MuJoCo data."""
+    platform_bottom, platform_top = _box_vertical_bounds(model, data, "platform_geom")
+    cube_a_bottom, cube_a_top = _box_vertical_bounds(model, data, "cube_a_geom")
+    cube_b_bottom, cube_b_top = _box_vertical_bounds(model, data, "cube_b_geom")
+    payload_bottom, payload_top = _box_vertical_bounds(model, data, "payload_visual")
+
+    hinge_id = _named_id(model, mujoco.mjtObj.mjOBJ_JOINT, "balance_hinge")
+    hinge_body_id = int(model.jnt_bodyid[hinge_id])
+    body_rotation = np.asarray(data.xmat[hinge_body_id], dtype=float).reshape(3, 3)
+    hinge_world = data.xpos[hinge_body_id] + body_rotation @ model.jnt_pos[hinge_id]
+
+    values = {
+        "platform_bottom_z": platform_bottom,
+        "platform_top_z": platform_top,
+        "cube_a_bottom_z": cube_a_bottom,
+        "cube_a_top_z": cube_a_top,
+        "cube_b_bottom_z": cube_b_bottom,
+        "cube_b_top_z": cube_b_top,
+        "payload_bottom_z": payload_bottom,
+        "payload_top_z": payload_top,
+        "hinge_z": float(hinge_world[2]),
+        "gap_platform_cube_a": cube_a_bottom - platform_top,
+        "gap_cube_a_cube_b": cube_b_bottom - cube_a_top,
+        "gap_cube_b_payload": payload_bottom - cube_b_top,
+    }
+    print("==============================")
+    print("Neutral Model Geometry Check")
+    print("==============================")
+    print(f"Platform bottom/top Z: {platform_bottom:.6f} / {platform_top:.6f} m")
+    print(f"Cube A bottom/top Z:   {cube_a_bottom:.6f} / {cube_a_top:.6f} m")
+    print(f"Cube B bottom/top Z:   {cube_b_bottom:.6f} / {cube_b_top:.6f} m")
+    print(f"Payload bottom/top Z:  {payload_bottom:.6f} / {payload_top:.6f} m")
+    print(f"Hinge world Z:         {values['hinge_z']:.6f} m")
+    print(f"Gap platform->Cube A:  {values['gap_platform_cube_a']:.6f} m")
+    print(f"Gap Cube A->Cube B:    {values['gap_cube_a_cube_b']:.6f} m")
+    print(f"Gap Cube B->payload:   {values['gap_cube_b_payload']:.6f} m")
+    for label, key in (
+        ("platform->Cube A", "gap_platform_cube_a"),
+        ("Cube A->Cube B", "gap_cube_a_cube_b"),
+        ("Cube B->payload", "gap_cube_b_payload"),
+    ):
+        if values[key] > warning_threshold:
+            print(f"WARNING: {label} gap {values[key]:.6f} m exceeds {warning_threshold:.3f} m")
+    return values
+
+
 def run_experiment(
     config: dict[str, Any],
     model_path: str | Path,
@@ -76,12 +138,25 @@ def run_experiment(
     _configure_model(model, config)
     data = mujoco.MjData(model)
 
+    # Verify the intended stacked assembly in its neutral pose before applying
+    # the deliberate five-degree initial pitch disturbance.
+    mujoco.mj_forward(model, data)
+    verify_model_geometry(model, data)
+
     hinge_joint_id = _named_id(model, mujoco.mjtObj.mjOBJ_JOINT, "balance_hinge")
     hinge_qpos_address = int(model.jnt_qposadr[hinge_joint_id])
     data.qpos[hinge_qpos_address] = np.deg2rad(float(config["model"]["initial_pitch_deg"]))
     mujoco.mj_forward(model, data)
 
     cube_b_id = _named_id(model, mujoco.mjtObj.mjOBJ_BODY, "cube_b")
+    payload_site_id = _named_id(model, mujoco.mjtObj.mjOBJ_SITE, "payload_site")
+    payload_geom_id = _named_id(model, mujoco.mjtObj.mjOBJ_GEOM, "payload_visual")
+    configured_offset = float(config["payload"]["offset_x"])
+    site_offset = float(model.site_pos[payload_site_id, 0])
+    if not np.isclose(site_offset, configured_offset, atol=1e-9):
+        raise ValueError(
+            f"payload.offset_x ({configured_offset}) must match payload_site local X ({site_offset})"
+        )
     balance_actuator_id = _named_id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, "balance_motor")
     base_actuator_id = _named_id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, "platform_position_servo")
     sensors = LocalSensorSuite(model)
@@ -106,7 +181,8 @@ def run_experiment(
 
     def step_once(step_index: int) -> None:
         nonlocal last_action
-        payload_active = payload.apply(data, cube_b_id)
+        payload_active = payload.apply(data, cube_b_id, payload_site_id)
+        model.geom_rgba[payload_geom_id, 3] = 0.90 if payload_active else 0.28
         target_position, target_velocity = base_motion.target(float(data.time))
         data.ctrl[base_actuator_id] = target_position
         if step_index % control_decimation == 0:
@@ -119,11 +195,11 @@ def run_experiment(
             time=float(data.time),
             pitch_deg=float(np.rad2deg(observation.module_pitch)),
             roll_deg=float(np.rad2deg(observation.module_roll)),
-            joint_angle_rad=observation.joint_angle,
+            joint_angle=observation.joint_angle,
             joint_angle_deg=float(np.rad2deg(observation.joint_angle)),
-            joint_angular_velocity=observation.joint_velocity,
-            commanded_joint_torque=last_action.torque,
-            applied_joint_torque=observation.measured_joint_torque,
+            joint_velocity=observation.joint_velocity,
+            controller_torque_command=last_action.torque,
+            actuator_torque_applied=observation.measured_joint_torque,
             connector_force=observation.connector_force,
             connector_torque_y=float(connector_torque[1]),
             base_position=sensors.scalar(data, "platform_position"),
@@ -170,6 +246,8 @@ def run_experiment(
     plot_paths = generate_experiment_plots(logger.records, config, output)
     if print_results:
         print_summary(report)
-        print(f"\nData: {csv_path}")
-        print(f"Plots: {len(plot_paths)} files in {output}")
+        print("\nResults saved:")
+        print(f"  {csv_path}")
+        for plot_path in plot_paths:
+            print(f"  {plot_path}")
     return ExperimentResult(logger.records, report, output, csv_path, plot_paths)

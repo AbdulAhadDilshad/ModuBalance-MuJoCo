@@ -54,7 +54,7 @@ All values use SI units internally.
 | Cube B | 0.24 m side, 2 kg | Upper intelligent module |
 | Hinge | Y-axis, ±35°, 0.35 N·m·s/rad damping | Pitch-only first experiment |
 | Initial pitch | 5° | Recoverable initial disturbance |
-| Payload | 0.50 kg equivalent at +0.15 m X offset | Produces both force and pitch moment |
+| Payload | 0.50 kg equivalent at +0.06 m X offset | Produces both force and pitch moment |
 | Base target speed | 0.05 m/s | Slow foundation motion |
 | Base velocity ramp | 0.75 s half-cosine | Finite, smooth acceleration |
 | PD gains | Kp = 45 N·m/rad, Kd = 7.5 N·m·s/rad | Stable tested baseline |
@@ -93,7 +93,7 @@ Fz = -m_payload g
 Ty = offset_x m_payload g
 ```
 
-to Cube B. This changes MuJoCo dynamics—it is not a display-only parameter. A zero-mass red visual marker identifies the load location. Payload sweep values are equivalent supported masses in kilograms.
+to Cube B at the actual off-centre `payload_site`. This changes MuJoCo dynamics—it is not a display-only parameter. A zero-mass red block rests 2 mm above Cube B and becomes opaque when the wrench activates. Payload sweep values are equivalent supported masses in kilograms.
 
 ## Measurements and outputs
 
@@ -109,10 +109,11 @@ Every 0.002 s row records:
 
 One experiment writes `results/<controller>/experiment.csv`, `evaluation.json`, and:
 
-- `pitch_vs_time.png`
-- `controller_torque_vs_time.png`
-- `connector_measurements_vs_time.png`
-- `base_motion_vs_time.png`
+- `pitch_response.png`
+- `controller_torque.png`
+- `connector_measurements.png`
+- `base_motion.png`
+- `joint_response.png`
 
 Pitch plots include payload/base event markers and the ±2° balance band.
 
@@ -222,7 +223,7 @@ If either CSV is absent, `compare.py` runs that experiment headlessly. Force bot
 python compare.py --rerun
 ```
 
-The output is `results/comparison_pitch.png`. A useful experiment should show materially different OFF and PD trajectories.
+The output is `results/comparison/pitch_pd_vs_off.png`. A useful experiment should show materially different OFF and PD trajectories.
 
 ## Payload sweep
 

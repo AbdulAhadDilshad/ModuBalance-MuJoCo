@@ -20,7 +20,7 @@ def _arrays(records: list[dict[str, Any]]) -> dict[str, np.ndarray]:
 
 
 def _events(axis: plt.Axes, payload_time: float, base_time: float) -> None:
-    axis.axvline(payload_time, color="#d95f02", linestyle="--", linewidth=1.3, label="Payload applied")
+    axis.axvline(payload_time, color="#d95f02", linestyle="--", linewidth=1.3, label="Payload disturbance")
     axis.axvline(base_time, color="#7570b3", linestyle="--", linewidth=1.3, label="Base motion begins")
 
 
@@ -46,23 +46,23 @@ def generate_experiment_plots(
 
     fig, ax = plt.subplots(figsize=(10, 4.8))
     ax.plot(time, data["pitch_deg"], color="#1b6ca8", linewidth=1.5, label="Cube B pitch")
-    ax.axhline(tolerance, color="gray", linestyle=":", label=f"±{tolerance:g}° tolerance")
-    ax.axhline(-tolerance, color="gray", linestyle=":")
+    ax.axhline(tolerance, color="gray", linestyle="--", label=f"+/-{tolerance:g} deg tolerance")
+    ax.axhline(-tolerance, color="gray", linestyle="--")
     _events(ax, payload_time, base_time)
     ax.set(xlabel="Time (s)", ylabel="Pitch (deg)", title="Cube B pitch response")
     ax.grid(alpha=0.25)
     ax.legend(loc="best")
-    paths.append(output / "pitch_vs_time.png")
+    paths.append(output / "pitch_response.png")
     _save(fig, paths[-1])
 
     fig, ax = plt.subplots(figsize=(10, 4.5))
-    ax.plot(time, data["commanded_joint_torque"], label="Commanded", linewidth=1.3)
-    ax.plot(time, data["applied_joint_torque"], label="Measured/applied", linewidth=1.0, alpha=0.75)
+    ax.plot(time, data["controller_torque_command"], label="Commanded", linewidth=1.3)
+    ax.plot(time, data["actuator_torque_applied"], label="Measured/applied", linewidth=1.0, alpha=0.75)
     _events(ax, payload_time, base_time)
     ax.set(xlabel="Time (s)", ylabel="Torque (N m)", title="Ideal connector control torque")
     ax.grid(alpha=0.25)
     ax.legend(loc="best")
-    paths.append(output / "controller_torque_vs_time.png")
+    paths.append(output / "controller_torque.png")
     _save(fig, paths[-1])
 
     fig, ax = plt.subplots(figsize=(10, 4.5))
@@ -75,7 +75,7 @@ def generate_experiment_plots(
     ax.grid(alpha=0.25)
     lines = ax.get_lines() + ax2.get_lines()
     ax.legend(lines, [line.get_label() for line in lines], loc="best")
-    paths.append(output / "connector_measurements_vs_time.png")
+    paths.append(output / "connector_measurements.png")
     _save(fig, paths[-1])
 
     fig, ax = plt.subplots(figsize=(10, 4.5))
@@ -86,7 +86,22 @@ def generate_experiment_plots(
     ax.set(xlabel="Time (s)", title="Movable foundation response")
     ax.grid(alpha=0.25)
     ax.legend(loc="best")
-    paths.append(output / "base_motion_vs_time.png")
+    paths.append(output / "base_motion.png")
+    _save(fig, paths[-1])
+
+    fig, ax = plt.subplots(figsize=(10, 4.5))
+    angle_line = ax.plot(time, data["joint_angle_deg"], color="#264653", label="Joint angle")
+    ax2 = ax.twinx()
+    velocity_line = ax2.plot(
+        time, data["joint_velocity"], color="#e9c46a", alpha=0.85, label="Joint velocity"
+    )
+    _events(ax, payload_time, base_time)
+    ax.set(xlabel="Time (s)", ylabel="Joint angle (deg)", title="Balance hinge response")
+    ax2.set_ylabel("Joint velocity (rad/s)")
+    ax.grid(alpha=0.25)
+    lines = angle_line + velocity_line + ax.get_lines()[1:]
+    ax.legend(lines, [line.get_label() for line in lines], loc="best")
+    paths.append(output / "joint_response.png")
     _save(fig, paths[-1])
     return paths
 
@@ -103,8 +118,8 @@ def generate_comparison_plot(
     fig, ax = plt.subplots(figsize=(10.5, 5.2))
     ax.plot(off["time"], off["pitch_deg"], color="#d1495b", linewidth=1.25, label="Controller OFF")
     ax.plot(pd["time"], pd["pitch_deg"], color="#00798c", linewidth=1.5, label="Intelligent PD ON")
-    ax.axhline(tolerance, color="gray", linestyle=":", label=f"±{tolerance:g}° tolerance")
-    ax.axhline(-tolerance, color="gray", linestyle=":")
+    ax.axhline(tolerance, color="gray", linestyle="--", label=f"+/-{tolerance:g} deg tolerance")
+    ax.axhline(-tolerance, color="gray", linestyle="--")
     _events(ax, float(config["payload"]["start_time"]), float(config["base_motion"]["start_time"]))
     ax.set(xlabel="Time (s)", ylabel="Pitch (deg)", title="Scientific baseline: local intelligent control contribution")
     ax.grid(alpha=0.25)

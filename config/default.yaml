@@ -23,7 +23,7 @@ controller:
 payload:
   equivalent_mass: 0.50
   start_time: 5.0
-  offset_x: 0.15
+  offset_x: 0.06
 
 base_motion:
   start_time: 10.0
@@ -33,4 +33,3 @@ base_motion:
 evaluation:
   balance_tolerance_deg: 2.0
   settling_dwell_time: 1.0
-
