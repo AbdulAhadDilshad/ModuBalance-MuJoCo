@@ -1,0 +1,128 @@
+<mujoco model="ModuBalance three intelligent modules">
+  <compiler angle="degree" autolimits="true"/>
+  <option timestep="0.002" gravity="0 0 -9.81" integrator="RK4"/>
+
+  <default>
+    <geom friction="0.8 0.01 0.001" condim="3"/>
+    <joint damping="0.3" armature="0.015"/>
+    <site size="0.010"/>
+  </default>
+
+  <visual>
+    <headlight ambient="0.35 0.35 0.35" diffuse="0.75 0.75 0.75"/>
+    <global azimuth="135" elevation="-15"/>
+  </visual>
+
+  <asset>
+    <texture name="ground_tex" type="2d" builtin="checker" rgb1="0.16 0.18 0.20" rgb2="0.22 0.24 0.26" width="512" height="512"/>
+    <material name="ground_mat" texture="ground_tex" texrepeat="4 4"/>
+    <material name="platform_mat" rgba="0.20 0.25 0.32 1"/>
+    <material name="cube_a_mat" rgba="0.18 0.52 0.72 1"/>
+    <material name="cube_b_mat" rgba="0.90 0.47 0.16 1"/>
+    <material name="cube_c_mat" rgba="0.36 0.68 0.34 1"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 -2 3" dir="0 0 -1" directional="true"/>
+    <geom name="ground" type="plane" size="5 5 0.1" material="ground_mat"/>
+
+    <!-- Neutral stack world Z: platform 0.00-0.08, A 0.08-0.32,
+         B 0.32-0.56, C 0.56-0.80, payload 0.802-0.852 m. -->
+    <body name="platform" pos="0 0 0.04">
+      <joint name="platform_slide" type="slide" axis="1 0 0" range="-1 1" damping="20"/>
+      <geom name="platform_geom" type="box" size="0.35 0.225 0.04" mass="12" material="platform_mat"/>
+
+      <body name="cube_a" pos="0 0 0.16">
+        <geom name="cube_a_geom" type="box" size="0.12 0.12 0.12" mass="3" material="cube_a_mat"/>
+        <site name="imu_A" pos="0 0 0" rgba="0 0 0 0"/>
+
+        <!-- AB lower magnets: 1 front-left, 2 front-right, 3 rear-left, 4 rear-right. -->
+        <site name="AB_lower_m1" pos="0.08 0.08 0.119" rgba="0.2 0.8 1 1"/>
+        <site name="AB_lower_m2" pos="0.08 -0.08 0.119" rgba="0.2 0.8 1 1"/>
+        <site name="AB_lower_m3" pos="-0.08 0.08 0.119" rgba="0.2 0.8 1 1"/>
+        <site name="AB_lower_m4" pos="-0.08 -0.08 0.119" rgba="0.2 0.8 1 1"/>
+
+        <!-- Co-located roll and pitch hinges form a two-axis connector at world z=0.32 m. -->
+        <body name="frame_AB_roll" pos="0 0 0.12">
+          <inertial pos="0 0 0" mass="0.001" diaginertia="0.000001 0.000001 0.000001"/>
+          <joint name="joint_AB_roll" type="hinge" axis="1 0 0" range="-25 25" damping="0.30"/>
+        <body name="cube_b" pos="0 0 0">
+          <joint name="joint_AB" type="hinge" axis="0 1 0" range="-35 35" damping="0.40"/>
+          <geom name="cube_b_geom" type="box" pos="0 0 0.12" size="0.12 0.12 0.12" mass="2" material="cube_b_mat"/>
+          <site name="imu_B" pos="0 0 0.12" rgba="0 0 0 0"/>
+          <site name="connector_AB_sensor" pos="0 0 0" rgba="1 1 0 0.5"/>
+          <site name="AB_upper_m1" pos="0.08 0.08 0.001" rgba="1 0.3 0.2 1"/>
+          <site name="AB_upper_m2" pos="0.08 -0.08 0.001" rgba="1 0.3 0.2 1"/>
+          <site name="AB_upper_m3" pos="-0.08 0.08 0.001" rgba="1 0.3 0.2 1"/>
+          <site name="AB_upper_m4" pos="-0.08 -0.08 0.001" rgba="1 0.3 0.2 1"/>
+
+          <!-- BC lower magnets sit 1 mm below B's top surface. -->
+          <site name="BC_lower_m1" pos="0.08 0.08 0.239" rgba="0.2 0.8 1 1"/>
+          <site name="BC_lower_m2" pos="0.08 -0.08 0.239" rgba="0.2 0.8 1 1"/>
+          <site name="BC_lower_m3" pos="-0.08 0.08 0.239" rgba="0.2 0.8 1 1"/>
+          <site name="BC_lower_m4" pos="-0.08 -0.08 0.239" rgba="0.2 0.8 1 1"/>
+
+          <!-- Co-located BC roll/pitch hinges are at B top / C bottom, world z=0.56 m. -->
+          <body name="frame_BC_roll" pos="0 0 0.24">
+            <inertial pos="0 0 0" mass="0.001" diaginertia="0.000001 0.000001 0.000001"/>
+            <joint name="joint_BC_roll" type="hinge" axis="1 0 0" range="-25 25" damping="0.30"/>
+          <body name="cube_c" pos="0 0 0">
+            <joint name="joint_BC" type="hinge" axis="0 1 0" range="-35 35" damping="0.40"/>
+            <geom name="cube_c_geom" type="box" pos="0 0 0.12" size="0.12 0.12 0.12" mass="2" material="cube_c_mat"/>
+            <site name="imu_C" pos="0 0 0.12" rgba="0 0 0 0"/>
+            <site name="connector_BC_sensor" pos="0 0 0" rgba="1 1 0 0.5"/>
+            <site name="BC_upper_m1" pos="0.08 0.08 0.001" rgba="1 0.3 0.2 1"/>
+            <site name="BC_upper_m2" pos="0.08 -0.08 0.001" rgba="1 0.3 0.2 1"/>
+            <site name="BC_upper_m3" pos="-0.08 0.08 0.001" rgba="1 0.3 0.2 1"/>
+            <site name="BC_upper_m4" pos="-0.08 -0.08 0.001" rgba="1 0.3 0.2 1"/>
+            <site name="phase2_payload_site" pos="0.06 0 0.242" rgba="1 0 0 0.8"/>
+            <geom name="phase2_payload_visual" type="box" pos="0.06 0 0.267" size="0.06 0.06 0.025"
+                  mass="0" contype="0" conaffinity="0" rgba="0.72 0.18 0.20 0.28"/>
+          </body>
+          </body>
+        </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <!-- Runtime latch constraints. Hinges retain translation while these welds lock alignment. -->
+  <equality>
+    <weld name="latch_AB" body1="cube_a" body2="cube_b" active="false"/>
+    <weld name="latch_BC" body1="cube_b" body2="cube_c" active="false"/>
+  </equality>
+
+  <actuator>
+    <motor name="motor_AB" joint="joint_AB" gear="1" ctrllimited="true" ctrlrange="-12 12" forcelimited="true" forcerange="-12 12"/>
+    <motor name="motor_AB_roll" joint="joint_AB_roll" gear="1" ctrllimited="true" ctrlrange="-12 12" forcelimited="true" forcerange="-12 12"/>
+    <motor name="motor_BC" joint="joint_BC" gear="1" ctrllimited="true" ctrlrange="-12 12" forcelimited="true" forcerange="-12 12"/>
+    <motor name="motor_BC_roll" joint="joint_BC_roll" gear="1" ctrllimited="true" ctrlrange="-12 12" forcelimited="true" forcerange="-12 12"/>
+    <position name="platform_position_servo" joint="platform_slide" kp="800" kv="140"
+              ctrllimited="true" ctrlrange="-1 1" forcelimited="true" forcerange="-250 250"/>
+  </actuator>
+
+  <sensor>
+    <framequat name="orientation_A" objtype="site" objname="imu_A"/>
+    <gyro name="angular_velocity_A" site="imu_A"/>
+    <framequat name="orientation_B" objtype="site" objname="imu_B"/>
+    <gyro name="angular_velocity_B" site="imu_B"/>
+    <framequat name="orientation_C" objtype="site" objname="imu_C"/>
+    <gyro name="angular_velocity_C" site="imu_C"/>
+    <jointpos name="position_AB" joint="joint_AB"/>
+    <jointvel name="velocity_AB" joint="joint_AB"/>
+    <jointpos name="roll_position_AB" joint="joint_AB_roll"/>
+    <jointvel name="roll_velocity_AB" joint="joint_AB_roll"/>
+    <jointpos name="position_BC" joint="joint_BC"/>
+    <jointvel name="velocity_BC" joint="joint_BC"/>
+    <jointpos name="roll_position_BC" joint="joint_BC_roll"/>
+    <jointvel name="roll_velocity_BC" joint="joint_BC_roll"/>
+    <actuatorfrc name="actuator_force_AB" actuator="motor_AB"/>
+    <actuatorfrc name="actuator_force_BC" actuator="motor_BC"/>
+    <force name="force_AB" site="connector_AB_sensor"/>
+    <torque name="torque_AB" site="connector_AB_sensor"/>
+    <force name="force_BC" site="connector_BC_sensor"/>
+    <torque name="torque_BC" site="connector_BC_sensor"/>
+    <jointpos name="phase2_platform_position" joint="platform_slide"/>
+    <jointvel name="phase2_platform_velocity" joint="platform_slide"/>
+  </sensor>
+</mujoco>

@@ -1,0 +1,78 @@
+simulation:
+  timestep: 0.002
+  duration: 15.0
+  control_decimation: 5
+  seed: 17
+
+modules:
+  cube_a_mass: 3.0
+  cube_b_mass: 2.0
+  cube_c_mass: 2.0
+  cube_size: [0.24, 0.24, 0.24]
+  initial_joint_ab_deg: 4.0
+  initial_joint_bc_deg: -3.0
+  initial_roll_ab_deg: 2.0
+  initial_roll_bc_deg: -1.0
+
+controller:
+  kp: 48.0
+  kd: 8.0
+  max_torque: 12.0
+  neighbour_weight: 0.20
+
+communication:
+  enabled: true
+  topology: nearest_neighbor
+  delay_ms: 0
+  packet_drop_probability: 0.0
+  noise_std: 0.0
+
+magnetic:
+  maximum_force_per_magnet: 18.0
+  nominal_command: 0.50
+  distance_scale: 0.020
+  pitch_gain: 3.5
+  pitch_rate_gain: 0.45
+  roll_gain: 3.0
+  roll_rate_gain: 0.35
+  magnet_xy_offset: 0.080
+
+latch:
+  angle_threshold_deg: 1.0
+  unlock_angle_deg: 3.0
+  angular_velocity_threshold: 0.08
+  unlock_angular_velocity: 0.35
+  minimum_stable_time: 0.50
+  locked_holding_scale: 0.25
+
+payload:
+  equivalent_mass: 0.50
+  start_time: 5.0
+
+base_motion:
+  start_time: 10.0
+  target_velocity: 0.05
+  ramp_duration: 0.75
+
+disturbance:
+  start_time: 7.5
+  force_x: 0.0
+  duration: 0.10
+
+reconfiguration:
+  event_time: 7.0
+  reposition_offset_x: 0.060
+
+sensor_noise:
+  orientation_std_deg: 0.0
+  angular_velocity_std: 0.0
+  force_std: 0.0
+
+friction: 0.8
+
+evaluation:
+  balance_tolerance_deg: 2.0
+  roll_tolerance_deg: 2.0
+  settling_dwell_time: 1.0
+  failure_max_pitch_deg: 15.0
+  failure_max_roll_deg: 15.0
