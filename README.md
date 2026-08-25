@@ -299,3 +299,137 @@ two-legged/wheeled robot
 ```
 
 The recommended immediate next step is a connector plant interface that converts local commands into force at several spatially separated magnetic elements, with gap-dependent force limits and current dynamics. Keep the existing local observation, baseline, logging, and evaluation unchanged so the ideal and magnetic connectors can be compared fairly.
+
+## Phase 2: multi-agent, magnetic, topology, and stress experiments
+
+Phase 2 extends—rather than replaces—the original experiment. `python main.py` still runs the Phase-1 viewer, while `--experiment` selects additive research stages.
+
+### Clone and run in a VS Code terminal
+
+On Windows PowerShell:
+
+```powershell
+git clone https://github.com/AbdulAhadDilshad/ModuBalance-MuJoCo.git
+cd ModuBalance-MuJoCo
+code .
+py -3.13 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+Run the original graphical simulation:
+
+```powershell
+.\.venv\Scripts\python.exe main.py --controller pd
+```
+
+Run Phase-2 headlessly:
+
+```powershell
+.\.venv\Scripts\python.exe main.py --headless --experiment three_module --controller distributed
+```
+
+On macOS/Linux, replace `.\.venv\Scripts\python.exe` with `.venv/bin/python`.
+
+### Three-agent architecture
+
+The new model stacks Cube A, B, and C with co-located roll/pitch hinge pairs at AB and BC. Neutral geometry gaps are 0 m at platform/A, A/B, and B/C, with a 2 mm payload clearance. Each of A, B, and C owns a separate `DistributedModuleAgent`.
+
+The only policy input is an immutable `Phase2LocalObservation` containing:
+
+- local pitch and roll;
+- local pitch and roll rate;
+- local connector angle and rate;
+- local connector force and torque;
+- the local connector-connected flag;
+- messages explicitly delivered by `CommunicationChannel`.
+
+Nearest-neighbour links are strictly `A↔B↔C`. A message contains only `pitch_error`, `angular_velocity`, and `connector_load`. The channel has no MuJoCo model/data reference and unit tests prove that A messages cannot be delivered directly to C. Delay, dropout, and Gaussian message noise are configurable.
+
+Run the baselines:
+
+```powershell
+.\.venv\Scripts\python.exe main.py --headless --experiment three_module --controller centralized
+.\.venv\Scripts\python.exe main.py --headless --experiment three_module --controller distributed
+.\.venv\Scripts\python.exe main.py --headless --experiment three_module --communication none
+.\.venv\Scripts\python.exe main.py --headless --experiment three_module --controller passive
+```
+
+`--mode centralized`, `--mode distributed`, and `--mode passive` are equivalent shortcuts that select the three-module experiment.
+
+### Four-element magnetic connector
+
+`IdealTorqueConnector` retains direct motor torque as the scientific upper-bound baseline. `MagneticConnector` uses four independently commanded attraction pairs at each interface:
+
+```text
+M1 front-left   (+0.08, +0.08 m)    M2 front-right (+0.08, -0.08 m)
+M3 rear-left    (-0.08, +0.08 m)    M4 rear-right  (-0.08, -0.08 m)
+```
+
+The force magnitude is
+
+```text
+F_i = u_i F_max / (1 + (d_i / d0)^2),   0 <= u_i <= 1
+```
+
+with nominal `F_max = 18 N` per element and `d0 = 0.020 m`. Forces are applied at the actual upper/lower MJCF sites with equal magnitude and opposite direction. MuJoCo therefore produces moments from `r × F`; no unexplained corrective torque is inserted. Front/rear command differences control pitch, and left/right differences control roll.
+
+```powershell
+.\.venv\Scripts\python.exe main.py --headless --experiment magnetic
+.\.venv\Scripts\python.exe main.py --headless --experiment magnetic --latch on
+.\.venv\Scripts\python.exe compare_connectors.py
+```
+
+### Mechanical latch
+
+Each connector has an initially inactive MuJoCo weld equality. A latch remains open while alignment is poor. It locks only after angle is within 1° and angular speed within 0.08 rad/s continuously for 0.5 s. It unlocks above 3° or 0.35 rad/s. This dwell plus hysteresis prevents chatter. Once locked, magnetic holding commands scale to 25% of their unlocked value.
+
+### Runtime topology experiments
+
+Topology is logged globally but distributed policies receive only their own connection flag and active communication links.
+
+```powershell
+.\.venv\Scripts\python.exe main.py --headless --experiment remove_module
+.\.venv\Scripts\python.exe main.py --headless --experiment add_module
+.\.venv\Scripts\python.exe main.py --headless --experiment reposition_module
+```
+
+- Remove deactivates BC, removes C's dynamic mass contribution, hides it, breaks the B–C communication link, and applies a small disconnect recoil.
+- Add begins with C dynamically inactive, then restores its physical mass and BC link with a 3° attachment misalignment.
+- Reposition shifts Cube C and its local sites by +60 mm in X, applies the equivalent shifted-C gravity moment, and introduces a 4° reattachment error.
+
+These operations occur in one running MuJoCo simulation. Agents are not sent an experiment-phase or topology-event message.
+
+### Stress testing
+
+```powershell
+.\.venv\Scripts\python.exe stress_test.py --trials 20
+```
+
+The one-factor Monte Carlo design varies payload, base velocity, impulse force, magnet strength, friction, sensor noise, communication delay, and packet loss. A deterministic payload/base-velocity grid supplies the 2-D recovery heatmap. Seeds and every test parameter are recorded in `results/stress/stress_results.csv`.
+
+Plots include payload/velocity/magnet/friction/noise success rates, payload peak pitch, communication-delay settling time, and the payload–velocity heatmap.
+
+### Communication comparison
+
+```powershell
+.\.venv\Scripts\python.exe compare_communication.py
+```
+
+This runs centralized, nearest-neighbour distributed, local-only distributed, and 50 ms delayed distributed control using identical dynamics and disturbances.
+
+### Phase-2H feasibility prototypes
+
+These are standing/slow-motion prototypes, not locomotion controllers:
+
+```powershell
+.\.venv\Scripts\python.exe main.py --headless --experiment two_leg
+.\.venv\Scripts\python.exe main.py --headless --experiment wheeled
+```
+
+The two-leg rig evaluates standing attitude, COM projection, foot contacts, payload shift, and small forward/lateral disturbances. It does not generate gait. The wheeled prototype uses a smooth 0.05 m/s foundation trajectory and tests pitch control under payload and force disturbances; it is not a high-speed vehicle model.
+
+### Phase-2 outputs and limitations
+
+Every three-module run writes a wide `experiment.csv`, `evaluation.json`, module pitch/roll plots, connector-force plot, all magnet commands, and latch/topology states. Logs include every module's attitude/rates/action, every connector's force/torque/latch/active state, all eight magnet commands and forces, communication receive counts, topology state, saturation, separation, and effort.
+
+The runtime add/remove mechanism uses dynamic activation/deactivation of Cube C's mass and BC participation because the stable stack model retains hinge topology. It is a robust topology-feasibility surrogate, not a free-flying docking simulation. The two-leg model is a support-pivot standing rig; walking, gait generation, actuator current/thermal dynamics, magnetic finite-element fields, and hardware latch impact mechanics remain future work.
